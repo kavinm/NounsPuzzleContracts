@@ -1,7 +1,4 @@
-import {
-  time,
-  loadFixture,
-} from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import hre from "hardhat";
@@ -30,11 +27,11 @@ describe("NounsPuzzle", function () {
       const { nounsPuzzle, addr1 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 1;
+      const trait = 0; // Background
 
       await expect(
-        nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl)
+        nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait)
       )
         .to.emit(nounsPuzzle, "PuzzleInitialized")
         .withArgs(addr1.address, anyValue);
@@ -51,17 +48,17 @@ describe("NounsPuzzle", function () {
       const { nounsPuzzle, addr1 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 1;
+      const trait = 0; // Background
 
       for (let i = 0; i < 3; i++) {
         await nounsPuzzle
           .connect(addr1)
-          .initializePuzzleNFT(pieceUrls, fullUrl);
+          .initializePuzzleNFT(traitNumber, trait);
       }
 
       await expect(
-        nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl)
+        nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait)
       ).to.be.revertedWith("Max puzzles per user reached");
     });
   });
@@ -71,10 +68,10 @@ describe("NounsPuzzle", function () {
       const { nounsPuzzle, owner, addr1 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 1;
+      const trait = 0; // Background
 
-      await nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl);
+      await nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait);
       const userTokens = await nounsPuzzle.getUserTokens(addr1.address);
       const tokenId = userTokens[0];
 
@@ -98,10 +95,10 @@ describe("NounsPuzzle", function () {
       const { nounsPuzzle, addr1, addr2 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 1;
+      const trait = 0; // Background
 
-      await nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl);
+      await nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait);
       const userTokens = await nounsPuzzle.getUserTokens(addr1.address);
       const tokenId = userTokens[0];
 
@@ -119,10 +116,10 @@ describe("NounsPuzzle", function () {
       const { nounsPuzzle, owner, addr1 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 1;
+      const trait = 0; // Background
 
-      await nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl);
+      await nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait);
       const userTokens = await nounsPuzzle.getUserTokens(addr1.address);
       const tokenId = userTokens[0];
 
@@ -143,10 +140,10 @@ describe("NounsPuzzle", function () {
       const { nounsPuzzle, addr1 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 1;
+      const trait = 0; // Background
 
-      await nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl);
+      await nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait);
       const userTokens = await nounsPuzzle.getUserTokens(addr1.address);
       const tokenId = userTokens[0];
 
@@ -156,25 +153,31 @@ describe("NounsPuzzle", function () {
     });
   });
 
-  describe("Token URI", function () {
-    it("Should return the correct token URI", async function () {
+  describe("Trait Information", function () {
+    it("Should return the correct trait number and trait", async function () {
       const { nounsPuzzle, addr1 } = await loadFixture(
         deployNounsPuzzleFixture
       );
-      const pieceUrls = Array(9).fill("https://example.com/piece.jpg");
-      const fullUrl = "https://example.com/full.jpg";
+      const traitNumber = 42;
+      const trait = 1; // Body
 
-      await nounsPuzzle.connect(addr1).initializePuzzleNFT(pieceUrls, fullUrl);
+      await nounsPuzzle.connect(addr1).initializePuzzleNFT(traitNumber, trait);
       const userTokens = await nounsPuzzle.getUserTokens(addr1.address);
       const tokenId = userTokens[0];
 
-      const uri = await nounsPuzzle.tokenURI(tokenId);
-      expect(uri).to.equal(fullUrl);
+      const returnedTraitNumber = await nounsPuzzle.getTraitNumber(tokenId);
+      expect(returnedTraitNumber).to.equal(traitNumber);
+
+      const returnedTrait = await nounsPuzzle.getTrait(tokenId);
+      expect(returnedTrait).to.equal(trait);
     });
 
     it("Should revert for non-existent token", async function () {
       const { nounsPuzzle } = await loadFixture(deployNounsPuzzleFixture);
-      await expect(nounsPuzzle.tokenURI(999)).to.be.revertedWith(
+      await expect(nounsPuzzle.getTraitNumber(999)).to.be.revertedWith(
+        "Puzzle does not exist"
+      );
+      await expect(nounsPuzzle.getTrait(999)).to.be.revertedWith(
         "Puzzle does not exist"
       );
     });
