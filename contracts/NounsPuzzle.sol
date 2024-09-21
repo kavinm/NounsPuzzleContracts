@@ -5,88 +5,87 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NounsPuzzle is ERC721, Ownable {
-    uint256 private _nextTokenId;
-
-    struct PuzzlePiece {
-        uint256 tokenId;
-        bool isQuestion; // Indicates whether the piece is a question
-        bool isSolved; // Indicates whether the question is solved
-        string metadata; // Metadata for puzzle piece (image or question)
+    struct PuzzleNFT {
+        string[9] puzzlePieceUrls;
+        string fullNftUrl;
+        uint8 piecesUnlocked;
+        bool minted;
     }
 
-    // Mapping token ID to puzzle piece
-    mapping(uint256 => PuzzlePiece) public puzzlePieces;
-    mapping(address => uint256[]) public userPuzzlePieces; // Store collected pieces by users
+    mapping(uint256 => PuzzleNFT) public puzzleNFTs;
+    mapping(address => uint256[]) public userTokens;
 
-    event PuzzlePieceMinted(address user, uint256 tokenId, string metadata);
-    event QuestionSolved(address user, uint256 tokenId);
-    event PuzzleCompleted(address user, string artworkMetadata);
+    uint256 private _nextTokenId;
+    uint256 public constant MAX_PUZZLES_PER_USER = 3;
+
+    event PuzzleInitialized(address indexed user, uint256 indexed tokenId);
+    event PuzzlePieceUnlocked(uint256 indexed tokenId, uint8 pieceNumber);
+    event NFTMinted(address indexed owner, uint256 indexed tokenId);
 
     constructor() ERC721("NounsPuzzleNFT", "NPZ") Ownable(msg.sender) {
         _nextTokenId = 1;
     }
 
-    // Function to mint new puzzle pieces
-    function mintPuzzlePiece(address recipient, bool isQuestion, string memory metadata) public onlyOwner {
-        uint256 newItemId = _nextTokenId++;
-        _mint(recipient, newItemId);
-        puzzlePieces[newItemId] = PuzzlePiece({
-            tokenId: newItemId,
-            isQuestion: isQuestion,
-            isSolved: !isQuestion, // If not a question, it's automatically marked solved
-            metadata: metadata
+    function initializePuzzleNFT(
+        string[9] memory pieceUrls,
+        string memory fullUrl
+    ) public {
+        require(userTokens[msg.sender].length < MAX_PUZZLES_PER_USER, "Max puzzles per user reached");
+        
+        uint256 tokenId = _nextTokenId++;
+        puzzleNFTs[tokenId] = PuzzleNFT({
+            puzzlePieceUrls: pieceUrls,
+            fullNftUrl: fullUrl,
+            piecesUnlocked: 1,
+            minted: false
         });
-        userPuzzlePieces[recipient].push(newItemId);
-        emit PuzzlePieceMinted(recipient, newItemId, metadata);
+        userTokens[msg.sender].push(tokenId);
+        
+        emit PuzzleInitialized(msg.sender, tokenId);
     }
 
-    // Function to solve a question puzzle piece
-    function solveQuestion(uint256 tokenId) public {
-        require(ownerOf(tokenId) == msg.sender, "You do not own this puzzle piece");
-        require(puzzlePieces[tokenId].isQuestion == true, "This is not a question piece");
-        require(puzzlePieces[tokenId].isSolved == false, "Question already solved");
-        puzzlePieces[tokenId].isSolved = true;
-        emit QuestionSolved(msg.sender, tokenId);
+    function unlockPuzzlePiece(uint256 tokenId) public onlyOwner {
+        require(_puzzleExists(tokenId), "Puzzle does not exist");
+        require(puzzleNFTs[tokenId].piecesUnlocked < 9, "All pieces already unlocked");
+        puzzleNFTs[tokenId].piecesUnlocked++;
+        emit PuzzlePieceUnlocked(tokenId, puzzleNFTs[tokenId].piecesUnlocked);
     }
 
-    // Function to check if user completed the puzzle
-    function checkPuzzleCompletion(address user) public view returns (bool) {
-        uint256[] memory pieces = userPuzzlePieces[user];
-        if (pieces.length != 27) {
-            return false; // Require all 27 pieces
-        }
-        uint256 solvedCount = 0;
-        for (uint256 i = 0; i < pieces.length; i++) {
-            if (puzzlePieces[pieces[i]].isSolved) {
-                solvedCount++;
+    function mintNFT(uint256 tokenId) public {
+        require(_isTokenOwnedByUser(msg.sender, tokenId), "Not the token owner");
+        require(puzzleNFTs[tokenId].piecesUnlocked == 9, "Not all pieces unlocked");
+        require(!puzzleNFTs[tokenId].minted, "NFT already minted");
+
+        _mint(msg.sender, tokenId);
+        puzzleNFTs[tokenId].minted = true;
+        emit NFTMinted(msg.sender, tokenId);
+    }
+
+    function getUnlockedPieces(uint256 tokenId) public view returns (uint8) {
+        require(_puzzleExists(tokenId), "Puzzle does not exist");
+        return puzzleNFTs[tokenId].piecesUnlocked;
+    }
+
+    function getUserTokens(address user) public view returns (uint256[] memory) {
+        return userTokens[user];
+    }
+
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_puzzleExists(tokenId), "Puzzle does not exist");
+        return puzzleNFTs[tokenId].fullNftUrl;
+    }
+
+    function _isTokenOwnedByUser(address user, uint256 tokenId) internal view returns (bool) {
+        uint256[] memory tokens = userTokens[user];
+        for (uint i = 0; i < tokens.length; i++) {
+            if (tokens[i] == tokenId) {
+                return true;
             }
         }
-        return solvedCount == 27; // Require all pieces solved
+        return false;
     }
 
-    // Function to mint artwork upon puzzle completion
-    function mintArtwork(address user, string memory artworkMetadata) public onlyOwner {
-        require(checkPuzzleCompletion(user), "Puzzle not yet completed");
-        uint256 newItemId = _nextTokenId++;
-        _mint(user, newItemId);
-        puzzlePieces[newItemId] = PuzzlePiece({
-            tokenId: newItemId,
-            isQuestion: false,
-            isSolved: true,
-            metadata: artworkMetadata
-        });
-        emit PuzzleCompleted(user, artworkMetadata);
-    }
-
-    // Get user progress on the puzzle
-    function getUserProgress(address user) public view returns (uint256 totalPieces, uint256 solvedPieces) {
-        uint256[] memory pieces = userPuzzlePieces[user];
-        uint256 solvedCount = 0;
-        for (uint256 i = 0; i < pieces.length; i++) {
-            if (puzzlePieces[pieces[i]].isSolved) {
-                solvedCount++;
-            }
-        }
-        return (pieces.length, solvedCount);
+    function _puzzleExists(uint256 tokenId) internal view returns (bool) {
+        return puzzleNFTs[tokenId].piecesUnlocked > 0 || puzzleNFTs[tokenId].minted;
     }
 }
