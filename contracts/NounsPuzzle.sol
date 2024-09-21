@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NounsPuzzle is ERC721, Ownable {
     enum Trait {
-        Background,
+        Head,
         Body,
         Accessory
     }
